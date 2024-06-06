@@ -2,6 +2,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: This is the template for the Roles stack
 Resources:
   MyRole:
+
     Type: 'AWS::IAM::Role'
     Properties:
       AssumeRolePolicyDocument:
