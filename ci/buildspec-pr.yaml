@@ -5,5 +5,5 @@ phases:
     commands:
       - echo Build started on `date`
       - printenv
-      - tree
+      - ls -la
       - bash pr-build.sh
