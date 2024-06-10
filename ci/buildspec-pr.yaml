@@ -6,4 +6,4 @@ phases:
       - echo Build started on `date`
       - printenv
       - ls -la
-      - bash pr-build.sh
+      - bash ci/pr-build.sh
