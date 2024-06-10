@@ -35,17 +35,6 @@ data "aws_iam_policy_document" "aws_users_pr" {
     effect = "Allow"
 
     actions = [
-      "cloudformation:CreateChangeSet",
-      "cloudformation:DescribeChangeSet",
-    ]
-
-    resources = ["*"]
-  }
-
-  statement {
-    effect = "Allow"
-
-    actions = [
       "ssm:GetParameters",
     ]
 
