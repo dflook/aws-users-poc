@@ -6,6 +6,6 @@ resource "aws_cloudformation_stack" "roles" {
   capabilities = ["CAPABILITY_NAMED_IAM"]
 
   lifecycle {
-    ignore_changes = ["template_body"]
+    ignore_changes = [template_body]
   }
 }
