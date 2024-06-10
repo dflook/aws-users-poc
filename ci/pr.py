@@ -135,7 +135,8 @@ def wait_for_changesets(changesets: list[Tuple[Stack, Changeset]]) -> list[Tuple
 
 
 def has_changes(changeset: Changeset) -> bool:
-    if changeset['Status'] == 'FAILED' and changeset['StatusReason'] == 'The submitted information didn\'t contain changes. Submit different information to create a change set.':
+    if changeset['Status'] == 'FAILED' and changeset['StatusReason'] == "The submitted information didn't contain changes. Submit different information to create a change set.":
+        print(f'No changes detected in {changeset["StackName"]}')
         return False
 
     return True
@@ -229,6 +230,8 @@ def current_user() -> str:
 def main():
     changesets = create_all_changesets()
     changesets = wait_for_changesets(changesets)
+
+    changesets = [(stack, changeset) for stack, changeset in changesets if has_changes(changeset)]
 
     result = render_changesets(changesets)
     print(result)
