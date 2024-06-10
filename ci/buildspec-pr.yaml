@@ -6,4 +6,5 @@ phases:
       - echo Build started on `date`
       - printenv
       - ls -la
-      - bash ci/pr-build.sh
+      - pip3 install -r ci/requirements.txt
+      - python3 ci/pr.py
