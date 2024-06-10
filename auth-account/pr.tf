@@ -12,8 +12,9 @@ data "aws_iam_policy_document" "aws_users_pr_trust_policy" {
 }
 
 resource "aws_iam_role" "aws_users_pr" {
-  name               = "codebuild-pr"
+  name = "codebuild-pr"
   path = "/aws-users/"
+
   assume_role_policy = data.aws_iam_policy_document.aws_users_pr_trust_policy.json
 }
 
@@ -34,12 +35,24 @@ data "aws_iam_policy_document" "aws_users_pr" {
     effect = "Allow"
 
     actions = [
-      "cloudformation:CreateChangeSet",
+      "ssm:GetParameters",
     ]
 
-    resources = ["*"]
+    resources = [aws_ssm_parameter.github_token.arn]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "sts:AssumeRole",
+    ]
+
+    resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/RoleChangeSetCreator"]
   }
 }
+
+data "aws_caller_identity" "current" {}
 
 resource "aws_iam_role_policy" "aws_users_pr" {
   role   = aws_iam_role.aws_users_pr.name
@@ -47,11 +60,11 @@ resource "aws_iam_role_policy" "aws_users_pr" {
 }
 
 resource "aws_codebuild_project" "aws_users_pr" {
-  name           = "aws-users-pr"
-  description    = "Create changeset for aws-users changes"
-  build_timeout  = 60 * 2  # 2 hours
+  name          = "aws-users-pr"
+  description   = "Create changeset for aws-users changes"
+  build_timeout = 60 * 2 # 2 hours
 
-  service_role = aws_iam_role.aws_users_pr.arn
+  service_role           = aws_iam_role.aws_users_pr.arn
   concurrent_build_limit = 1
 
   artifacts {
@@ -59,16 +72,16 @@ resource "aws_codebuild_project" "aws_users_pr" {
   }
 
   environment {
-    compute_type                = "BUILD_GENERAL1_MEDIUM"
-    image                       = "aws/codebuild/amazonlinux2-x86_64-standard:5.0"
-    type                        = "LINUX_CONTAINER"
+    compute_type = "BUILD_GENERAL1_MEDIUM"
+    image        = "aws/codebuild/amazonlinux2-x86_64-standard:5.0"
+    type         = "LINUX_CONTAINER"
   }
 
   source {
     type            = "GITHUB"
     location        = var.aws_users_repo
     git_clone_depth = 1
-    buildspec = file("${path.module}/buildspec-pr.yaml")
+    buildspec       = "ci/buildspec-pr.yaml"
   }
 }
 

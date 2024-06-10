@@ -1,0 +1,14 @@
+version: 0.2
+
+env:
+  parameter-store:
+    GITHUB_TOKEN: /users/github_token
+
+phases:
+  build:
+    commands:
+      - echo Build started on `date`
+      - printenv
+      - ls -la
+      - pip3 install -r ci/requirements.txt
+      - python3 ci/pr.py

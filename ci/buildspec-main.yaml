@@ -1,0 +1,13 @@
+version: 0.2
+
+env:
+  parameter-store:
+    GITHUB_TOKEN: /users/github_token
+
+phases:
+  build:
+    commands:
+      - echo Build started on `date`
+      - printenv
+      - ls -la
+      - bash ci/main-build.sh

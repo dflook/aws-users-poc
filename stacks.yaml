@@ -1,0 +1,7 @@
+# This file defines what stack-definitions will be automatically deployed
+
+flooktech:
+  account-id: "635533433732"
+  stacks:
+    - name: Roles
+      template: output/stack-definitions/flooktech.yaml
