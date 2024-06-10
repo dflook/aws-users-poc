@@ -17,7 +17,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 debug = logger.debug
 
-cloudformation = boto3.client('cloudformation', region_name='eu-west-1')
 github = GithubApi('https://api.github.com', os.environ.get('GITHUB_TOKEN'))
 
 @dataclass
@@ -39,6 +38,39 @@ class Changeset(TypedDict):
 def changeset_name() -> str:
     return f"{os.environ.get('CODE_BUILD_WEBHOOK_TRIGGER', 'unknown-pr')}-{os.environ.get('CODEBUILD_RESOLVED_SOURCE_VERSION', 'unknown-commit')}-{os.environ.get('CODEBUILD_BUILD_NUMBER', int(time.time()))}"
 
+class Cloudformation:
+    def __init__(self):
+        self._clients = {}
+
+    def cloudformation_client(self, account_id: str, role_name: str):
+
+        role_arn = f'arn:aws:iam::{account_id}:role/{role_name}'
+
+        if role_arn not in self._clients:
+
+            sts = boto3.client('sts').assume_role(
+                RoleArn=f'arn:aws:iam::{account_id}:role/{role_name}',
+                RoleSessionName='aws-users',
+                DurationSeconds=60 * 60,
+            )['Credentials']
+
+            self._clients[role_arn] = boto3.client(
+                'cloudformation',
+                aws_access_key_id=sts.get('AccessKeyId'),
+                aws_secret_access_key=sts.get('SecretAccessKey'),
+                aws_session_token=sts.get('SessionToken'),
+                region_name='eu-west-1'
+            )
+
+        return self._clients[role_arn]
+
+    def changeset_creator(self, account_id: str):
+        return self.cloudformation_client(account_id, 'RoleChangeSetCreator')
+
+    def changeset_executor(self, account_id: str):
+        return self.cloudformation_client(account_id, 'RoleIAMAdministrator')
+
+cloudformation = Cloudformation()
 
 def defined_stacks() -> Iterable[Stack]:
     for account_name, account in yaml.safe_load(Path('stacks.yaml').read_text()).items():
@@ -51,7 +83,7 @@ def defined_stacks() -> Iterable[Stack]:
 
 def create_changeset(stack: Stack) -> Changeset:
     logger.info(f"Creating changeset for {stack.account_name}/{stack.stack_name}...")
-    response = cloudformation.create_change_set(
+    response = cloudformation.changeset_creator(stack.account_id).create_change_set(
         StackName=stack.stack_name,
         TemplateBody=stack.template_path.read_text(),
         ChangeSetName=changeset_name(),
@@ -61,7 +93,7 @@ def create_changeset(stack: Stack) -> Changeset:
 
     logger.info(response)
 
-    changeset = cloudformation.describe_change_set(
+    changeset = cloudformation.changeset_creator(stack.account_id).describe_change_set(
         ChangeSetName=response['Id'],
     )
     logger.info(changeset)
@@ -85,7 +117,7 @@ def wait_for_changesets(changesets: list[Tuple[Stack, Changeset]]) -> list[Tuple
 
     for stack, changeset in changesets:
         while True:
-            changeset = cloudformation.describe_change_set(
+            changeset = cloudformation.changeset_creator(stack.account_id).describe_change_set(
                 ChangeSetName=changeset['ChangeSetId']
             )
 

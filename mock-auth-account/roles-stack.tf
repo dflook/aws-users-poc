@@ -4,4 +4,8 @@ resource "aws_cloudformation_stack" "roles" {
   template_body = file("${path.module}/../output/stack-definitions/flooktech.yaml")
 
   capabilities = ["CAPABILITY_NAMED_IAM"]
+
+  lifecycle {
+    ignore_changes = ["template_body"]
+  }
 }

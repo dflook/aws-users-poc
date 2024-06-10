@@ -51,7 +51,19 @@ data "aws_iam_policy_document" "aws_users_pr" {
 
     resources = [aws_ssm_parameter.github_token.arn]
   }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "sts:AssumeRole",
+    ]
+
+    resources = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/RoleChangeSetCreator"]
+  }
 }
+
+data "aws_caller_identity" "current" {}
 
 resource "aws_iam_role_policy" "aws_users_pr" {
   role   = aws_iam_role.aws_users_pr.name
