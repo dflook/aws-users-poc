@@ -1,7 +1,7 @@
 resource "aws_cloudformation_stack" "roles" {
   name = "Roles"
 
-  template_body = file("${path.module}/../templates/webops.yaml")
+  template_body = file("${path.module}/../output/stack-definitions/flooktech.yaml")
 
   capabilities = ["CAPABILITY_NAMED_IAM"]
 }

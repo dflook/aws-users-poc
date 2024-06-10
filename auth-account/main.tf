@@ -58,7 +58,7 @@ resource "aws_codebuild_project" "aws_users_main" {
     type            = "GITHUB"
     location        = var.aws_users_repo
     git_clone_depth = 1
-    buildspec = file("${path.module}/buildspec-main.yaml")
+    buildspec = "ci/buildspec-main.yaml"
   }
 
   secondary_sources {

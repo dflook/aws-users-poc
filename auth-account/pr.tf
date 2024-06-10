@@ -68,7 +68,7 @@ resource "aws_codebuild_project" "aws_users_pr" {
     type            = "GITHUB"
     location        = var.aws_users_repo
     git_clone_depth = 1
-    buildspec = file("${path.module}/buildspec-pr.yaml")
+    buildspec = "ci/buildspec-pr.yaml"
   }
 }
 
