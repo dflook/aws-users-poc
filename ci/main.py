@@ -1,7 +1,7 @@
 import logging
 from typing import Tuple
 
-from pr import create_all_changesets, wait_for_changesets, is_failed, Stack, Changeset, cloudformation
+from pr import create_all_changesets, wait_for_changesets, is_failed, Stack, Changeset, cloudformation, has_changes
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -29,6 +29,8 @@ def execute_all_changesets(changesets: list[Tuple[Stack, Changeset]]) -> None:
 def main():
     changesets = create_all_changesets()
     changesets = wait_for_changesets(changesets)
+
+    changesets = [(stack, changeset) for stack, changeset in changesets if has_changes(changeset)]
 
     # At this point we can compare the contents of the changeset with the one on the Pr to see if they match
 
