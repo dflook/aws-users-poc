@@ -2,17 +2,23 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Tuple, TypedDict, Any
+from typing import Iterable, Tuple, TypedDict, Any, Optional
 
 import boto3
 import logging
 import yaml
 
+from api import GithubApi
+from find_pr import find_pr
+from comment import find_comment, update_comment
+
 logging.basicConfig()
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
+debug = logger.debug
 
 cloudformation = boto3.client('cloudformation', region_name='eu-west-1')
+github = GithubApi('https://api.github.com', os.environ.get('GITHUB_TOKEN'))
 
 @dataclass
 class Stack:
@@ -102,39 +108,108 @@ def has_changes(changeset: Changeset) -> bool:
 
     return True
 
-def render_changeset(changeset: Changeset) -> str:
-    s = changeset.get('StatusReason', '') + '\n'
+def is_failed(changeset: Changeset) -> bool:
+    return changeset['Status'] == 'FAILED'
+
+def render_changeset_diff(changeset: Changeset) -> str:
+
+    s = '```diff\n'
 
     for change in changeset.get('Changes', []):
 
         change = change['ResourceChange']
         if change.get('Action') == 'Add':
-            s += f'Add {change["ResourceType"]} {change["LogicalResourceId"]}\n'
+            s += f'+ {change["ResourceType"]} {change["LogicalResourceId"]}\n'
         elif change.get('Action') == 'Modify':
             if change.get('Replacement') == 'True':
-                s += f'Replace {change["ResourceType"]} {change["LogicalResourceId"]}\n'
+                s += f'! {change["ResourceType"]} {change["LogicalResourceId"]}\n'
             else:
-                s += f'Update {change["ResourceType"]} {change["LogicalResourceId"]}\n'
+                s += f'! {change["ResourceType"]} {change["LogicalResourceId"]}\n'
         elif change.get('Action') == 'Remove':
-            s += f'Remove {change["ResourceType"]} {change["LogicalResourceId"]}\n'
+            s += f'- {change["ResourceType"]} {change["LogicalResourceId"]}\n'
         elif change.get('Action') == 'Dynamic':
-            s += f'Undetermined Change to {change["ResourceType"]} {change["LogicalResourceId"]}\n'
+            s += f'! Undetermined to {change["ResourceType"]} {change["LogicalResourceId"]}\n'
+
+    s += '```\n'
 
     return s
+
+def render_changesets(changesets: list[Tuple[Stack, Changeset]]) -> str:
+    s = ''
+
+    for stack, changeset in changesets:
+        if s:
+            s += '<hr>\n'
+
+        s += f"Changeset for __{stack.account_name}/{stack.stack_name}__\n"
+
+        if changeset['Status'] == 'FAILED':
+            s += f"Status: {changeset['Status']}: {changeset['StatusReason']}.\n"
+        else:
+            s += render_changeset_diff(changeset)
+        s += f'\n[View Changeset](https://eu-west-1.console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/changesets/changes?stackId={changeset["StackId"]}&changeSetId={changeset["ChangeSetId"]})'
+
+    if not s:
+        s = 'No changes detected'
+
+    return s
+
+def current_user() -> str:
+    def graphql() -> Optional[str]:
+        graphql_url = 'https://api.github.com/graphql'
+
+        response = github.post(graphql_url, json={
+            'query': "query { viewer { login } }"
+        })
+        debug(f'graphql response: {response.content}')
+
+        if response.ok:
+            try:
+                return response.json()['data']['viewer']['login']
+            except Exception as e:
+                pass
+
+        debug('Failed to get current user from graphql')
+
+    def rest() -> Optional[str]:
+        response = github.get('https://api.github.com/user')
+        debug(f'rest response: {response.content}')
+
+        if response.ok:
+            user = response.json()
+
+            return user['login']
+
+    # Not all tokens can be used with graphql
+    # There is also no rest endpoint that can get the current login for app tokens :(
+    # Try graphql first, then fallback to rest (e.g. for fine grained PATs)
+
+    username = graphql() or rest()
+
+    if username is None:
+        debug('Unable to get username for the github token')
+        username = 'unknown'
+
+    debug(f'token username is {username}')
+    return username
 
 
 def main():
     changesets = create_all_changesets()
     changesets = wait_for_changesets(changesets)
 
-    for stack, changeset in changesets:
-        if has_changes(changeset):
-            print(f"Changeset {stack.account_name}/{stack.stack_name} created with status {changeset['Status']}.")
-            print(render_changeset(changeset))
-            print(f'https://eu-west-1.console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/changesets/changes?stackId={changeset["StackId"]}&changeSetId={changeset["ChangeSetId"]}')
-            print()
-        else:
-            print(f"No changes detected in {stack.account_name}/{stack.stack_name}.")
+    result = render_changesets(changesets)
+    print(result)
+
+    pr_url, issue_url = find_pr(github)
+    username = current_user()
+
+    comment = find_comment(github, issue_url, username, {})
+
+    update_comment(github, comment, body=result)
+
+    if any(is_failed(changeset) for _, changeset in changesets):
+        raise Exception("One or more changesets failed")
 
 
 if __name__ == '__main__':
